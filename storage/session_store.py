@@ -16,6 +16,8 @@ class SessionStore:
 
     def __init__(self) -> None:
         self._sessions: dict[str, list[CaptionLine]] = {}
+        self._participants: dict[str, dict[str, str]] = {} # meeting_id -> {conn_id: name}
+        self._connections: dict[str, list[Any]] = {} # meeting_id -> [websocket_objs]
         self._lock = Lock()
 
     def create_session(self) -> str:
@@ -50,3 +52,39 @@ class SessionStore:
             if captions is None:
                 raise HTTPException(status_code=404, detail="Session not found")
             return list(captions)
+
+    def add_participant(self, meeting_id: str, conn_id: str, name: str, websocket: Any):
+        with self._lock:
+            if meeting_id not in self._participants:
+                self._participants[meeting_id] = {}
+                self._connections[meeting_id] = []
+                self._sessions[meeting_id] = []
+            
+            self._participants[meeting_id][conn_id] = name
+            self._connections[meeting_id].append(websocket)
+            return list(self._participants[meeting_id].values())
+
+    def remove_participant(self, meeting_id: str, conn_id: str, websocket: Any):
+        with self._lock:
+            if meeting_id in self._participants:
+                if conn_id in self._participants[meeting_id]:
+                    self._participants[meeting_id].pop(conn_id)
+                if websocket in self._connections[meeting_id]:
+                    self._connections[meeting_id].remove(websocket)
+                
+                # Cleanup if empty
+                if not self._participants[meeting_id]:
+                    self._participants.pop(meeting_id)
+                    self._connections.pop(meeting_id)
+                    # We might keep sessions for history
+            
+            return list(self._participants.get(meeting_id, {}).values())
+
+    def get_participants(self, meeting_id: str) -> list[dict[str, str]]:
+        with self._lock:
+            participants_map = self._participants.get(meeting_id, {})
+            return [{"id": k, "name": v} for k, v in participants_map.items()]
+
+    def get_connections(self, meeting_id: str) -> list[Any]:
+        with self._lock:
+            return list(self._connections.get(meeting_id, []))

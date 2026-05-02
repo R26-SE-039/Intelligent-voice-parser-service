@@ -98,6 +98,13 @@ class SpeechPersistence:
 
         self._gateway.upsert(self._gateway.settings.utterances_table, rows, on_conflict="utterance_id")
 
+    def save_meeting(self, meeting_data: dict[str, Any]) -> None:
+        self._gateway.insert(self._gateway.settings.meetings_table, meeting_data)
+
+    def get_meeting(self, meeting_id: str) -> dict[str, Any] | None:
+        results = self._gateway.select(self._gateway.settings.meetings_table, eq={"meeting_id": meeting_id})
+        return results[0] if results else None
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()

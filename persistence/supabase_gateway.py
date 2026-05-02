@@ -32,6 +32,7 @@ class SupabaseSettings:
     stories_table: str
     speech_sessions_table: str
     captions_table: str
+    meetings_table: str
 
     @property
     def enabled(self) -> bool:
@@ -52,6 +53,7 @@ def load_supabase_settings() -> SupabaseSettings:
         stories_table=os.getenv("SUPABASE_STORIES_TABLE", "generated_stories").strip(),
         speech_sessions_table=os.getenv("SUPABASE_SPEECH_SESSIONS_TABLE", "speech_sessions").strip(),
         captions_table=os.getenv("SUPABASE_CAPTIONS_TABLE", "speech_captions").strip(),
+        meetings_table=os.getenv("SUPABASE_MEETINGS_TABLE", "meetings").strip(),
     )
 
 
@@ -77,35 +79,51 @@ class SupabaseGateway:
     def from_env(cls) -> "SupabaseGateway":
         return cls(load_supabase_settings())
 
-    def _qualified_table(self, table: str) -> str:
-        if "." in table:
-            return table
-        return f"{self.settings.schema}.{table}"
+    def _get_table(self, table: str):
+        """Helper to get a table reference with the correct schema."""
+        if not self._client:
+            return None
+        return self._client.schema(self.settings.schema).table(table)
 
     def upsert(self, table: str, rows: dict[str, Any] | list[dict[str, Any]], on_conflict: str | None = None) -> None:
-        if not self._client:
+        table_ref = self._get_table(table)
+        if not table_ref:
             return
 
-        qualified_table = self._qualified_table(table)
-        query = self._client.table(qualified_table).upsert(rows)
+        query = table_ref.upsert(rows)
         if on_conflict:
-            query = self._client.table(qualified_table).upsert(rows, on_conflict=on_conflict)
+            query = table_ref.upsert(rows, on_conflict=on_conflict)
         query.execute()
 
     def insert(self, table: str, rows: dict[str, Any] | list[dict[str, Any]]) -> None:
-        if not self._client:
+        table_ref = self._get_table(table)
+        if not table_ref:
             return
 
-        self._client.table(self._qualified_table(table)).insert(rows).execute()
+        table_ref.insert(rows).execute()
 
     def update(self, table: str, values: dict[str, Any], *, eq: dict[str, Any]) -> None:
-        if not self._client:
+        table_ref = self._get_table(table)
+        if not table_ref:
             return
 
-        query = self._client.table(self._qualified_table(table)).update(values)
+        query = table_ref.update(values)
         for key, value in eq.items():
             query = query.eq(key, value)
         query.execute()
+
+    def select(self, table: str, *, eq: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+        table_ref = self._get_table(table)
+        if not table_ref:
+            return []
+
+        query = table_ref.select("*")
+        if eq:
+            for key, value in eq.items():
+                query = query.eq(key, value)
+        
+        result = query.execute()
+        return result.data or []
 
     def get_user(self, token: str, secret: str) -> dict[str, Any] | None:
         """Verify a custom JWT issued by the auth-service."""

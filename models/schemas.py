@@ -67,3 +67,19 @@ class UrlTranscriptionResponse(BaseModel):
     text: str
     utterances: list[dict[str, Any]] = Field(default_factory=list)
     sentiment_results: list[dict[str, Any]] = Field(default_factory=list)
+
+class MeetingCreateRequest(BaseModel):
+    name: str = Field(min_length=1)
+    mode: str = "instant"
+    scheduled_at: str | None = None
+
+class MeetingJoinRequest(BaseModel):
+    meeting_id: str
+    passcode: str
+
+class MeetingResponse(BaseModel):
+    status: str
+    meeting_id: str
+    passcode: str
+    invite_link: str
+    name: str | None = None

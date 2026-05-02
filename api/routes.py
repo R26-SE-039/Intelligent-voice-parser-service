@@ -3,14 +3,21 @@
 from __future__ import annotations
 
 from typing import Any
+import random
+import string
+import uuid
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, WebSocket, WebSocketDisconnect
 
 from clients.assemblyai_client import AssemblyAIClient
 from core.config import SpeechServiceSettings
 from models.schemas import (
     CaptionPushRequest,
     CaptionsResponse,
+    MeetingCreateRequest,
+    MeetingJoinRequest,
+    MeetingResponse,
     UrlTranscriptionRequest,
     UrlTranscriptionResponse,
     VoiceSessionStartResponse,
@@ -52,6 +59,10 @@ def _map_sentiment(payload: dict[str, Any], speaker_map: dict[str, str]) -> list
         }
         for item in sentiment_raw
     ]
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 def build_router(
@@ -139,5 +150,121 @@ def build_router(
             utterances=mapped_utterances,
             sentiment_results=mapped_sentiment,
         )
+
+    @router.post("/meeting/create", response_model=MeetingResponse)
+    def create_meeting(
+        body: MeetingCreateRequest,
+        user: dict = Depends(get_current_user)
+    ) -> MeetingResponse:
+        meeting_id = ''.join(random.choices(string.ascii_uppercase + string.digits, k=9))
+        passcode = ''.join(random.choices(string.digits, k=6))
+        
+        meeting_data = {
+            "meeting_id": meeting_id,
+            "name": body.name,
+            "host_id": user["id"],
+            "passcode": passcode,
+            "mode": body.mode,
+            "status": "active",
+            "created_at": _utc_now(),
+        }
+        
+        persistence.save_meeting(meeting_data)
+        
+        # In a real app, this link would point to your frontend domain
+        invite_link = f"http://localhost:5173/login?meetingId={meeting_id}&passcode={passcode}"
+        
+        return MeetingResponse(
+            status="success",
+            meeting_id=meeting_id,
+            passcode=passcode,
+            invite_link=invite_link,
+            name=body.name
+        )
+
+    @router.post("/meeting/join", response_model=MeetingResponse)
+    def join_meeting(
+        body: MeetingJoinRequest,
+        user: dict = Depends(get_current_user)
+    ) -> MeetingResponse:
+        meeting = persistence.get_meeting(body.meeting_id)
+        
+        if not meeting:
+            raise HTTPException(status_code=404, detail="Meeting not found")
+            
+        if meeting["passcode"] != body.passcode:
+            raise HTTPException(status_code=401, detail="Invalid passcode")
+            
+        return MeetingResponse(
+            status="success",
+            meeting_id=meeting["meeting_id"],
+            passcode=meeting["passcode"],
+            invite_link=f"http://localhost:5173/login?meetingId={meeting['meeting_id']}&passcode={meeting['passcode']}",
+            name=meeting["name"]
+        )
+
+    @router.websocket("/ws/{meeting_id}")
+    async def websocket_endpoint(
+        websocket: WebSocket,
+        meeting_id: str,
+        name: str = "Anonymous"
+    ):
+        await websocket.accept()
+        conn_id = str(uuid.uuid4())
+        
+        # Add to store
+        store.add_participant(meeting_id, conn_id, name, websocket)
+        
+        # Broadcast current participants to everyone in this meeting
+        participants = store.get_participants(meeting_id)
+        connections = store.get_connections(meeting_id)
+        
+        for conn in connections:
+            try:
+                await conn.send_json({"type": "participants", "data": participants})
+            except: pass
+
+        try:
+            while True:
+                # Wait for data (could be audio binary or JSON chat)
+                message = await websocket.receive()
+                
+                if "bytes" in message:
+                    # Binary data (audio chunk)
+                    # In a real app, we would pipe this to AssemblyAI realtime
+                    # For now, we'll just acknowledge or ignore
+                    pass
+                elif "text" in message:
+                    # JSON message
+                    data = message.get("text")
+                    try:
+                        import json
+                        msg_json = json.loads(data)
+                        
+                        if msg_json.get("type") == "chat":
+                            # Broadcast chat to everyone
+                            for conn in connections:
+                                try:
+                                    await conn.send_json({
+                                        "type": "chat",
+                                        "data": {
+                                            "sender": msg_json.get("sender", name),
+                                            "text": msg_json.get("text", ""),
+                                            "timestamp": _utc_now()
+                                        }
+                                    })
+                                except: pass
+                        elif msg_json.get("type") == "ping":
+                            await websocket.send_json({"type": "pong"})
+                    except: pass
+        except WebSocketDisconnect:
+            store.remove_participant(meeting_id, conn_id, websocket)
+            # Broadcast updated participants
+            participants = store.get_participants(meeting_id)
+            connections = store.get_connections(meeting_id)
+            for conn in connections:
+                try:
+                    await conn.send_json({"type": "participants", "data": participants})
+                except: pass
 
     return router
