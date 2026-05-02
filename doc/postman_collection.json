@@ -2,7 +2,7 @@
 	"info": {
 		"_postman_id": "84e2a6d7-8461-4c6e-91a1-62220c41dbef",
 		"name": "Intelligent Voice Parser Service",
-		"description": "API collection for the Speech-to-Text and Voice Parsing microservice.",
+		"description": "API collection for the Meeting Orchestration and Voice Parsing microservice.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
@@ -29,36 +29,10 @@
 			]
 		},
 		{
-			"name": "Voice Sessions",
+			"name": "Meetings",
 			"item": [
 				{
-					"name": "Start Session",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}",
-								"type": "text"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/voice/session/start",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"voice",
-								"session",
-								"start"
-							]
-						},
-						"description": "Starts a new voice session and returns an AssemblyAI realtime token."
-					},
-					"response": []
-				},
-				{
-					"name": "Stop Session",
+					"name": "Create Meeting",
 					"request": {
 						"method": "POST",
 						"header": [
@@ -70,7 +44,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"session_id\": \"your-session-id-here\"\n}",
+							"raw": "{\n    \"name\": \"Sprint Planning\",\n    \"is_recorded\": true\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -78,14 +52,46 @@
 							}
 						},
 						"url": {
-							"raw": "{{base_url}}/voice/session/stop",
+							"raw": "{{base_url}}/meeting/create",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
-								"voice",
-								"session",
-								"stop"
+								"meeting",
+								"create"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Join Meeting",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"meeting_id\": \"{{meeting_id}}\",\n    \"passcode\": \"{{passcode}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/meeting/join",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"meeting",
+								"join"
 							]
 						}
 					},
@@ -94,44 +100,10 @@
 			]
 		},
 		{
-			"name": "Captions",
+			"name": "Collaboration",
 			"item": [
 				{
-					"name": "Push Caption",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}",
-								"type": "text"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"session_id\": \"your-session-id-here\",\n    \"speaker\": \"PO\",\n    \"text\": \"this system work must be work on linux.\"\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{base_url}}/voice/captions/push",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"voice",
-								"captions",
-								"push"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Get Captions",
+					"name": "Get Chat History",
 					"request": {
 						"method": "GET",
 						"header": [
@@ -142,14 +114,39 @@
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/voice/captions/{{session_id}}",
+							"raw": "{{base_url}}/meeting/{{meeting_id}}/chats",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
-								"voice",
-								"captions",
-								"{{session_id}}"
+								"meeting",
+								"{{meeting_id}}",
+								"chats"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Live Transcript",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/meeting/{{meeting_id}}/transcript",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"meeting",
+								"{{meeting_id}}",
+								"transcript"
 							]
 						}
 					},
@@ -158,10 +155,10 @@
 			]
 		},
 		{
-			"name": "Transcription",
+			"name": "Intelligence",
 			"item": [
 				{
-					"name": "Transcribe Audio URL (with Roles)",
+					"name": "Analyze Meeting (Summary)",
 					"request": {
 						"method": "POST",
 						"header": [
@@ -173,7 +170,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"audio_url\": \"https://assembly.ai/wildflowers.mp3\",\n    \"speaker_labels\": true,\n    \"sentiment_analysis\": true,\n    \"speaker_map\": {\n        \"A\": \"PO\",\n        \"B\": \"BA\"\n    }\n}",
+							"raw": "{\n    \"type\": \"summary\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -181,17 +178,50 @@
 							}
 						},
 						"url": {
-							"raw": "{{base_url}}/voice/transcribe/url",
+							"raw": "{{base_url}}/meeting/{{meeting_id}}/analyze",
 							"host": [
 								"{{base_url}}"
 							],
 							"path": [
-								"voice",
-								"transcribe",
-								"url"
+								"meeting",
+								"{{meeting_id}}",
+								"analyze"
 							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Analyze Meeting (Action Items)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"type\": \"action_items\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
-						"description": "Transcribes a recorded audio file and maps generic speaker labels to roles like PO and BA."
+						"url": {
+							"raw": "{{base_url}}/meeting/{{meeting_id}}/analyze",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"meeting",
+								"{{meeting_id}}",
+								"analyze"
+							]
+						}
 					},
 					"response": []
 				}
@@ -221,17 +251,22 @@
 	"variable": [
 		{
 			"key": "base_url",
-			"value": "http://localhost:8000",
+			"value": "http://localhost:8001",
 			"type": "string"
 		},
 		{
 			"key": "auth_token",
-			"value": "your_supabase_jwt_here",
+			"value": "your_auth_service_jwt_here",
 			"type": "string"
 		},
 		{
-			"key": "session_id",
-			"value": "current-session-id",
+			"key": "meeting_id",
+			"value": "ROOM_ID",
+			"type": "string"
+		},
+		{
+			"key": "passcode",
+			"value": "PASSCODE",
 			"type": "string"
 		}
 	]

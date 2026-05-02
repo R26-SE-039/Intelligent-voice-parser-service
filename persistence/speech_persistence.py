@@ -105,6 +105,30 @@ class SpeechPersistence:
         results = self._gateway.select(self._gateway.settings.meetings_table, eq={"meeting_id": meeting_id})
         return results[0] if results else None
 
+    def save_chat(self, meeting_id: str, sender: str, text: str) -> None:
+        self._gateway.insert(
+            self._gateway.settings.chats_table,
+            {
+                "meeting_id": meeting_id,
+                "sender": sender,
+                "text": text,
+                "created_at": _utc_now(),
+            }
+        )
+
+    def get_chats(self, meeting_id: str) -> list[dict[str, Any]]:
+        return self._gateway.select(
+            self._gateway.settings.chats_table,
+            eq={"meeting_id": meeting_id}
+        )
+
+    def get_meeting_captions(self, meeting_id: str) -> list[dict[str, Any]]:
+        # Currently we use meeting_id as session_id in simple cases
+        return self._gateway.select(
+            self._gateway.settings.captions_table,
+            eq={"session_id": meeting_id}
+        )
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()

@@ -33,6 +33,7 @@ class SupabaseSettings:
     speech_sessions_table: str
     captions_table: str
     meetings_table: str
+    chats_table: str
 
     @property
     def enabled(self) -> bool:
@@ -54,6 +55,7 @@ def load_supabase_settings() -> SupabaseSettings:
         speech_sessions_table=os.getenv("SUPABASE_SPEECH_SESSIONS_TABLE", "speech_sessions").strip(),
         captions_table=os.getenv("SUPABASE_CAPTIONS_TABLE", "speech_captions").strip(),
         meetings_table=os.getenv("SUPABASE_MEETINGS_TABLE", "meetings").strip(),
+        chats_table=os.getenv("SUPABASE_CHATS_TABLE", "meeting_chats").strip(),
     )
 
 

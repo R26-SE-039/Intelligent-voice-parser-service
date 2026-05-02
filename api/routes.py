@@ -9,6 +9,10 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Header, WebSocket, WebSocketDisconnect
+import asyncio
+import websockets
+import base64
+import json
 
 from clients.assemblyai_client import AssemblyAIClient
 from core.config import SpeechServiceSettings
@@ -203,6 +207,51 @@ def build_router(
             name=meeting["name"]
         )
 
+    @router.get("/meeting/{meeting_id}/chats")
+    def get_meeting_chats(
+        meeting_id: str,
+        user: dict = Depends(get_current_user)
+    ):
+        chats = persistence.get_chats(meeting_id)
+        return {"status": "success", "chats": chats}
+
+    @router.get("/meeting/{meeting_id}/transcript")
+    def get_meeting_transcript(
+        meeting_id: str,
+        user: dict = Depends(get_current_user)
+    ):
+        transcript = persistence.get_meeting_captions(meeting_id)
+        return {"status": "success", "transcript": transcript}
+
+    @router.post("/meeting/{meeting_id}/analyze")
+    def analyze_meeting(
+        meeting_id: str,
+        body: dict,
+        user: dict = Depends(get_current_user)
+    ):
+        # type = body.get("type", "summary")
+        # In a real app, we would pull the transcript and send to Gemini/GPT-4
+        # For now, we'll return a structured mock that demonstrates the feature
+        
+        analysis_type = body.get("type", "summary")
+        
+        if analysis_type == "summary":
+            return {
+                "status": "success",
+                "data": "The meeting focused on the migration of session management to the Voice Service. The team discussed the benefits of centralizing real-time state and decided to proceed with the refactor. Key technical challenges included database schema synchronization and WebSocket orchestration."
+            }
+        elif analysis_type == "action_items":
+            return {
+                "status": "success",
+                "data": [
+                    "Update Supabase schema to include meeting_chats table.",
+                    "Refactor frontend App.tsx to use React Router.",
+                    "Integrate AssemblyAI real-time token generation in the session start flow."
+                ]
+            }
+        
+        return {"status": "error", "message": "Unknown analysis type"}
+
     @router.websocket("/ws/{meeting_id}")
     async def websocket_endpoint(
         websocket: WebSocket,
@@ -215,56 +264,105 @@ def build_router(
         # Add to store
         store.add_participant(meeting_id, conn_id, name, websocket)
         
-        # Broadcast current participants to everyone in this meeting
+        # Broadcast current participants
         participants = store.get_participants(meeting_id)
         connections = store.get_connections(meeting_id)
-        
         for conn in connections:
-            try:
-                await conn.send_json({"type": "participants", "data": participants})
+            try: await conn.send_json({"type": "participants", "data": participants})
             except: pass
 
+        # AssemblyAI Real-time Integration
+        # We wrap this in a try block so the meeting doesn't crash if AAI is offline
+        try:
+            token = assemblyai.create_realtime_token()
+            if not token:
+                print("[AAI] ⚠️ Failed to generate transcription token. Check your API key.")
+                aai_ws = None
+            else:
+                aai_url = f"wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000&token={token}"
+                aai_ws = await websockets.connect(aai_url)
+                
+                async def handle_aai_messages():
+                    """Listen for transcription results from AssemblyAI and broadcast them."""
+                    try:
+                        async for message in aai_ws:
+                            msg_data = json.loads(message)
+                            if msg_data.get("message_type") in ["PartialTranscript", "FinalTranscript"]:
+                                text = msg_data.get("text", "")
+                                if not text: continue
+                                
+                                broadcast_data = {
+                                    "type": "transcription",
+                                    "data": {
+                                        "text": text,
+                                        "speaker_id": conn_id,
+                                        "speaker_name": name,
+                                        "is_final": msg_data.get("message_type") == "FinalTranscript"
+                                    }
+                                }
+                                for conn in store.get_connections(meeting_id):
+                                    try: await conn.send_json(broadcast_data)
+                                    except: pass
+                                    
+                                if msg_data.get("message_type") == "FinalTranscript":
+                                    persistence.save_caption(meeting_id, CaptionLine(
+                                        id=str(uuid.uuid4()),
+                                        speaker=name,
+                                        text=text,
+                                        created_at=_utc_now()
+                                    ))
+                    except Exception as e:
+                        print(f"[AAI] Receiver error: {e}")
+
+                asyncio.create_task(handle_aai_messages())
+        except Exception as e:
+            print(f"[AAI] ❌ Transcription Service Unavailable: {e}")
+            aai_ws = None
+
+        # Main WebSocket Loop
         try:
             while True:
-                # Wait for data (could be audio binary or JSON chat)
-                message = await websocket.receive()
+                msg = await websocket.receive()
                 
-                if "bytes" in message:
-                    # Binary data (audio chunk)
-                    # In a real app, we would pipe this to AssemblyAI realtime
-                    # For now, we'll just acknowledge or ignore
-                    pass
-                elif "text" in message:
-                    # JSON message
-                    data = message.get("text")
-                    try:
-                        import json
-                        msg_json = json.loads(data)
-                        
-                        if msg_json.get("type") == "chat":
-                            # Broadcast chat to everyone
-                            for conn in connections:
-                                try:
-                                    await conn.send_json({
-                                        "type": "chat",
-                                        "data": {
-                                            "sender": msg_json.get("sender", name),
-                                            "text": msg_json.get("text", ""),
-                                            "timestamp": _utc_now()
-                                        }
-                                    })
-                                except: pass
-                        elif msg_json.get("type") == "ping":
-                            await websocket.send_json({"type": "pong"})
-                    except: pass
+                if "bytes" in msg:
+                    # Only forward if AAI is connected
+                    if aai_ws and aai_ws.open:
+                        audio_b64 = base64.b64encode(msg["bytes"]).decode("utf-8")
+                        await aai_ws.send(json.dumps({"audio_data": audio_b64}))
+                    
+                elif "text" in msg:
+                    data = json.loads(msg["text"])
+                    if data.get("type") == "chat":
+                        text = data.get("text", "")
+                        persistence.save_chat(meeting_id, name, text)
+                        for conn in store.get_connections(meeting_id):
+                            try:
+                                await conn.send_json({
+                                    "type": "chat",
+                                    "data": {
+                                        "sender": data.get("sender", name),
+                                        "text": text,
+                                        "timestamp": _utc_now()
+                                    }
+                                })
+                            except: pass
+                    elif data.get("type") == "ping":
+                        await websocket.send_json({"type": "pong"})
         except WebSocketDisconnect:
+            pass
+        finally:
+            # Cleanup AssemblyAI
+            if aai_ws:
+                try: 
+                    await aai_ws.send(json.dumps({"terminate_session": True}))
+                    await aai_ws.close()
+                except: pass
+            
+            # Cleanup Store & Notify others
             store.remove_participant(meeting_id, conn_id, websocket)
-            # Broadcast updated participants
             participants = store.get_participants(meeting_id)
-            connections = store.get_connections(meeting_id)
-            for conn in connections:
-                try:
-                    await conn.send_json({"type": "participants", "data": participants})
+            for conn in store.get_connections(meeting_id):
+                try: await conn.send_json({"type": "participants", "data": participants})
                 except: pass
 
     return router

@@ -27,7 +27,10 @@ class AssemblyAIClient:
         return self._settings.assemblyai_api_key
 
     def _request(self, method: str, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-        url = f"{self._settings.assemblyai_base_url}{path}"
+        base_url = self._settings.assemblyai_base_url.rstrip("/")
+        path = path.lstrip("/")
+        url = f"{base_url}/{path}"
+        print(f"[AAI] API Request: {method} {url}")
         body: bytes | None = None
         if payload is not None:
             body = json.dumps(payload).encode("utf-8")
@@ -52,17 +55,71 @@ class AssemblyAIClient:
         except error.URLError as exc:
             raise HTTPException(status_code=502, detail=f"AssemblyAI unavailable: {exc.reason}") from exc
 
-    def create_realtime_token(self, expires_in_seconds: int = 3600) -> str | None:
+    def create_realtime_token(self, expires_in: int = 3600) -> str | None:
         try:
-            response = self._request(
-                "POST",
-                "/realtime/token",
-                payload={"expires_in_seconds": expires_in_seconds},
+            # We use a direct URL here to be 100% sure of the path
+            url = "https://api.assemblyai.com/v2/realtime/token"
+            req = request.Request(
+                url=url,
+                data=json.dumps({"expires_in": expires_in}).encode("utf-8"),
+                method="POST",
+                headers={
+                    "authorization": self._api_key(),
+                    "content-type": "application/json",
+                },
             )
-            token = str(response.get("token", "")).strip()
-            return token or None
-        except HTTPException:
-            return None
+            with request.urlopen(req, timeout=10) as resp:
+                response = json.loads(resp.read().decode("utf-8"))
+                token = str(response.get("token", "")).strip()
+                return token or None
+        except error.HTTPError as e:
+            error_body = e.read().decode("utf-8")
+            print(f"[AAI] Token Error (v2): {e.code} - {error_body}")
+            # Fallback to non-v2 path if v2 fails
+            try:
+                url = "https://api.assemblyai.com/realtime/token"
+                req = request.Request(
+                    url=url,
+                    data=json.dumps({"expires_in": expires_in}).encode("utf-8"),
+                    method="POST",
+                    headers={
+                        "authorization": self._api_key(),
+                        "content-type": "application/json",
+                    },
+                )
+                with request.urlopen(req, timeout=10) as resp:
+                    response = json.loads(resp.read().decode("utf-8"))
+                    token = str(response.get("token", "")).strip()
+                    return token or None
+            except error.HTTPError as e2:
+                error_body2 = e2.read().decode("utf-8")
+                print(f"[AAI] Token Error (root): {e2.code} - {error_body2}")
+                # Final Fallback: EU Endpoint
+                try:
+                    url = "https://api.eu.assemblyai.com/v2/realtime/token"
+                    req = request.Request(
+                        url=url,
+                        data=json.dumps({"expires_in": expires_in}).encode("utf-8"),
+                        method="POST",
+                        headers={
+                            "authorization": self._api_key(),
+                            "content-type": "application/json",
+                        },
+                    )
+                    with request.urlopen(req, timeout=10) as resp:
+                        response = json.loads(resp.read().decode("utf-8"))
+                        token = str(response.get("token", ""))
+                        return token or None
+                except error.HTTPError as e:
+                    error_body = e.read().decode("utf-8")
+                    print(f"[AAI] Token Error (EU): {e.code} - {error_body}")
+                    return None
+                except Exception as e3:
+                    print(f"[AAI] Token Error (EU): {e3}")
+                    return None
+            except Exception as e_root:
+                print(f"[AAI] Token Error (root-generic): {e_root}")
+                return None
 
     def transcribe_url(
         self,
