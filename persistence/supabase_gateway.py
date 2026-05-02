@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import jwt
 from dataclasses import dataclass
 from typing import Any, TYPE_CHECKING
 
@@ -38,6 +39,8 @@ class SupabaseSettings:
 
 
 def load_supabase_settings() -> SupabaseSettings:
+    from dotenv import load_dotenv
+    load_dotenv()
     return SupabaseSettings(
         url=os.getenv("SUPABASE_URL", "").strip(),
         service_role_key=os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip(),
@@ -103,3 +106,25 @@ class SupabaseGateway:
         for key, value in eq.items():
             query = query.eq(key, value)
         query.execute()
+
+    def get_user(self, token: str, secret: str) -> dict[str, Any] | None:
+        """Verify a custom JWT issued by the auth-service."""
+        try:
+            decoded = jwt.decode(token, secret, algorithms=["HS256"])
+            if not decoded.get("sub"):
+                return None
+            
+            return {
+                "id": decoded["sub"],
+                "email": decoded.get("email", "unknown@example.com"),
+                "role": decoded.get("role", "user"),
+            }
+        except jwt.ExpiredSignatureError:
+            print("Auth error: Token expired")
+            return None
+        except jwt.InvalidTokenError as e:
+            print(f"Auth error: Invalid token ({e})")
+            return None
+        except Exception as e:
+            print(f"Auth error: {e}")
+            return None

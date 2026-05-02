@@ -52,7 +52,11 @@ class UrlTranscriptionRequest(BaseModel):
     speaker_labels: bool = True
     sentiment_analysis: bool = True
     language_code: str = "en_us"
-    speech_model: str = "best"
+    speech_model: str = "universal-2"
+    speaker_map: dict[str, str] = Field(
+        default_factory=dict,
+        description="Optional mapping of speaker labels (e.g., 'A', 'B' or '1', '2') to roles or names.",
+    )
 
 
 class UrlTranscriptionResponse(BaseModel):

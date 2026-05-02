@@ -1,0 +1,238 @@
+{
+	"info": {
+		"_postman_id": "84e2a6d7-8461-4c6e-91a1-62220c41dbef",
+		"name": "Intelligent Voice Parser Service",
+		"description": "API collection for the Speech-to-Text and Voice Parsing microservice.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "General",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"health"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Voice Sessions",
+			"item": [
+				{
+					"name": "Start Session",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/voice/session/start",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"voice",
+								"session",
+								"start"
+							]
+						},
+						"description": "Starts a new voice session and returns an AssemblyAI realtime token."
+					},
+					"response": []
+				},
+				{
+					"name": "Stop Session",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"session_id\": \"your-session-id-here\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/voice/session/stop",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"voice",
+								"session",
+								"stop"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Captions",
+			"item": [
+				{
+					"name": "Push Caption",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"session_id\": \"your-session-id-here\",\n    \"speaker\": \"PO\",\n    \"text\": \"this system work must be work on linux.\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/voice/captions/push",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"voice",
+								"captions",
+								"push"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Captions",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/voice/captions/{{session_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"voice",
+								"captions",
+								"{{session_id}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Transcription",
+			"item": [
+				{
+					"name": "Transcribe Audio URL (with Roles)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"audio_url\": \"https://assembly.ai/wildflowers.mp3\",\n    \"speaker_labels\": true,\n    \"sentiment_analysis\": true,\n    \"speaker_map\": {\n        \"A\": \"PO\",\n        \"B\": \"BA\"\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/voice/transcribe/url",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"voice",
+								"transcribe",
+								"url"
+							]
+						},
+						"description": "Transcribes a recorded audio file and maps generic speaker labels to roles like PO and BA."
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		},
+		{
+			"key": "auth_token",
+			"value": "your_supabase_jwt_here",
+			"type": "string"
+		},
+		{
+			"key": "session_id",
+			"value": "current-session-id",
+			"type": "string"
+		}
+	]
+}

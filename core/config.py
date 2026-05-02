@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from dotenv import load_dotenv
 from dataclasses import dataclass
 
 
@@ -15,10 +16,12 @@ class SpeechServiceSettings:
     transcription_timeout_seconds: int
     polling_interval_seconds: float
     cors_origins: list[str]
+    auth_secret: str
 
 
 def load_settings() -> SpeechServiceSettings:
     """Load and normalize service settings."""
+    load_dotenv()
     return SpeechServiceSettings(
         assemblyai_api_key=os.getenv("ASSEMBLYAI_API_KEY", "").strip(),
         assemblyai_base_url=os.getenv("ASSEMBLYAI_BASE_URL", "https://api.assemblyai.com/v2").strip(),
@@ -34,4 +37,5 @@ def load_settings() -> SpeechServiceSettings:
             "http://localhost:3000",
             "http://127.0.0.1:3000",
         ],
+        auth_secret=os.getenv("AUTH_SECRET", "dev-change-me-secret").strip(),
     )

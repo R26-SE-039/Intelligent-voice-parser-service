@@ -9,7 +9,7 @@ from urllib import error, request
 
 from fastapi import HTTPException
 
-from ..core.config import SpeechServiceSettings
+from core.config import SpeechServiceSettings
 
 
 class AssemblyAIClient:
@@ -79,7 +79,7 @@ class AssemblyAIClient:
                 "audio_url": audio_url,
                 "speaker_labels": speaker_labels,
                 "sentiment_analysis": sentiment_analysis,
-                "speech_model": speech_model,
+                "speech_models": [speech_model],
                 "language_code": language_code,
             },
         )

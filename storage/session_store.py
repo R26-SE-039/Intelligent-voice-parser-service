@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 
-from ..models.schemas import CaptionLine
+from models.schemas import CaptionLine
 
 
 class SessionStore:

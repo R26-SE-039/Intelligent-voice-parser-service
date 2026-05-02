@@ -5,12 +5,12 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from ..api.routes import build_router
-from ..clients.assemblyai_client import AssemblyAIClient
-from ..persistence.speech_persistence import SpeechPersistence
-from ..persistence.supabase_gateway import SupabaseGateway
-from ..storage.session_store import SessionStore
-from .config import load_settings
+from api.routes import build_router
+from clients.assemblyai_client import AssemblyAIClient
+from persistence.speech_persistence import SpeechPersistence
+from persistence.supabase_gateway import SupabaseGateway
+from storage.session_store import SessionStore
+from core.config import load_settings
 
 
 def create_app() -> FastAPI:
@@ -30,5 +30,5 @@ def create_app() -> FastAPI:
     store = SessionStore()
     assemblyai = AssemblyAIClient(settings)
     persistence = SpeechPersistence(SupabaseGateway.from_env())
-    app.include_router(build_router(store=store, assemblyai=assemblyai, persistence=persistence))
+    app.include_router(build_router(store=store, assemblyai=assemblyai, persistence=persistence, settings=settings))
     return app
