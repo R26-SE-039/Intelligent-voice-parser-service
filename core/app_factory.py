@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.routes import build_router
-from clients.assemblyai_client import AssemblyAIClient
+from clients.azure_speech_client import AzureSpeechClient
 from persistence.speech_persistence import SpeechPersistence
 from persistence.supabase_gateway import SupabaseGateway
 from storage.session_store import SessionStore
@@ -28,7 +28,12 @@ def create_app() -> FastAPI:
     )
 
     store = SessionStore()
-    assemblyai = AssemblyAIClient(settings)
+    azure_speech = AzureSpeechClient(settings)
     persistence = SpeechPersistence(SupabaseGateway.from_env())
-    app.include_router(build_router(store=store, assemblyai=assemblyai, persistence=persistence, settings=settings))
+    app.include_router(build_router(
+        store=store,
+        azure_speech=azure_speech,
+        persistence=persistence,
+        settings=settings
+    ))
     return app
