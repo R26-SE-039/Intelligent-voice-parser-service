@@ -25,7 +25,7 @@ The **Intelligent Voice Parser Service** is a real-time speech-to-text engine bu
 ### 3. Integrated Communication
 - **Meeting Chat**: In-meeting text messaging that is persisted alongside the transcript.
 - **Auto-Persistence**: Every finalized caption is saved to Supabase instantly to prevent data loss.
-- **Transcript Finalization**: One-click consolidation of real-time captions into a structured final transcript for post-meeting analysis.
+- **Auto-Finalization**: Automatically consolidates real-time captions into a structured final transcript when the **last participant leaves** the meeting. Manual finalization is also available via the API.
 
 ### 4. Advanced Analysis (Extendable)
 - **AI Summary**: Built-in hooks for generating meeting summaries.
@@ -91,6 +91,7 @@ The service uses a "Push-Stream" architecture to handle audio data:
 - **Create**: Generates a unique 9-character Meeting ID and a 6-digit passcode.
 - **Join**: Validates the passcode and establishes a WebSocket session.
 - **Sync**: Automatically broadcasts participant lists and historical chats upon joining.
+- **Finalize**: Automatically triggers when the last participant leaves, consolidating all captions into a final transcript.
 
 ---
 
