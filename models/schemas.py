@@ -18,6 +18,7 @@ class CaptionLine(BaseModel):
 
 class MeetingCreateRequest(BaseModel):
     name: str = Field(min_length=1)
+    project_id: str | None = None
     mode: str = "instant"
     scheduled_at: str | None = None
 
@@ -30,6 +31,7 @@ class MeetingJoinRequest(BaseModel):
 class MeetingResponse(BaseModel):
     status: str
     meeting_id: str
+    project_id: str | None = None
     passcode: str
     invite_link: str
     name: str | None = None

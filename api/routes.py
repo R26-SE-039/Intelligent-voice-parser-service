@@ -63,6 +63,7 @@ def build_router(
         meeting_data = {
             "meeting_id": meeting_id,
             "name": body.name,
+            "project_id": body.project_id,
             "host_id": user["id"],
             "passcode": passcode,
             "mode": body.mode,
@@ -78,6 +79,7 @@ def build_router(
         return MeetingResponse(
             status="success",
             meeting_id=meeting_id,
+            project_id=body.project_id,
             passcode=passcode,
             invite_link=invite_link,
             name=body.name
@@ -99,6 +101,7 @@ def build_router(
         return MeetingResponse(
             status="success",
             meeting_id=meeting["meeting_id"],
+            project_id=meeting.get("project_id"),
             passcode=meeting["passcode"],
             invite_link=f"http://localhost:5173/login?meetingId={meeting['meeting_id']}&passcode={meeting['passcode']}",
             name=meeting["name"]
