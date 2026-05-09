@@ -129,6 +129,61 @@ class SpeechPersistence:
             eq={"session_id": meeting_id}
         )
 
+    def finalize_meeting_transcript(self, meeting_id: str) -> dict[str, Any] | None:
+        """Consolidate real-time captions into the final transcripts and utterances tables."""
+        captions = self.get_meeting_captions(meeting_id)
+        if not captions:
+            return None
+
+        # Sort captions by time
+        captions.sort(key=lambda x: x.get("created_at", ""))
+
+        transcript_id = f"tr-{meeting_id}"
+        full_text = " ".join([c.get("text", "") for c in captions])
+        participants = sorted(list({c.get("speaker", "Unknown") for c in captions}))
+
+        # 1. Save to transcripts table
+        self._gateway.upsert(
+            self._gateway.settings.transcripts_table,
+            {
+                "transcript_id": transcript_id,
+                "source": meeting_id,
+                "participants": participants,
+                "metadata": {
+                    "provider": "azure-realtime",
+                    "status": "completed",
+                    "text": full_text,
+                },
+                "updated_at": _utc_now(),
+            },
+            on_conflict="transcript_id"
+        )
+
+        # 2. Save to utterances table
+        utterance_rows = []
+        for index, cap in enumerate(captions):
+            utterance_rows.append({
+                "utterance_id": f"{transcript_id}:{index}",
+                "transcript_id": transcript_id,
+                "utterance_index": index,
+                "speaker": cap.get("speaker", "Unknown"),
+                "text": cap.get("text", ""),
+                "timestamp_start": None, # Azure real-time doesn't give precise offsets easily here
+                "timestamp_end": None,
+                "metadata": {
+                    "original_caption_id": cap.get("caption_id")
+                }
+            })
+
+        if utterance_rows:
+            self._gateway.upsert(
+                self._gateway.settings.utterances_table, 
+                utterance_rows, 
+                on_conflict="utterance_id"
+            )
+
+        return {"transcript_id": transcript_id, "utterance_count": len(utterance_rows)}
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()

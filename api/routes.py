@@ -143,6 +143,17 @@ def build_router(
             }
         
         return {"status": "error", "message": "Unknown analysis type"}
+    
+    @router.post("/meeting/{meeting_id}/finalize")
+    def finalize_meeting(
+        meeting_id: str,
+        user: dict = Depends(get_current_user)
+    ):
+        result = persistence.finalize_meeting_transcript(meeting_id)
+        if not result:
+            raise HTTPException(status_code=404, detail="No captions found for this meeting to finalize.")
+        
+        return {"status": "success", "data": result}
 
     @router.websocket("/ws/{meeting_id}")
     async def websocket_endpoint(
@@ -281,8 +292,15 @@ def build_router(
             
             store.remove_participant(meeting_id, conn_id, websocket)
             participants = store.get_participants(meeting_id)
-            for conn in store.get_connections(meeting_id):
-                try: await conn.send_json({"type": "participants", "data": participants})
-                except: pass
+            
+            # If this was the last person, auto-finalize the transcript
+            if not participants:
+                print(f"[Meeting] {meeting_id} is empty. Auto-finalizing transcript...")
+                persistence.finalize_meeting_transcript(meeting_id)
+            else:
+                # Otherwise, just notify the remaining people
+                for conn in store.get_connections(meeting_id):
+                    try: await conn.send_json({"type": "participants", "data": participants})
+                    except: pass
 
     return router
